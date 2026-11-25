@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F8F9FA" />
+  <title>jatinSARTHI AI — Indian Legal Simplifier &amp; Document Analyzer</title>
+
+  <!-- Fonts: Plus Jakarta Sans (UI) + Instrument Serif (headings) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS, Lucide icons, Marked (markdown) + DOMPurify (keeps AI output safe) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            serif: ['"Instrument Serif"', 'Georgia', 'serif'],
+          },
+          colors: { ink: '#0F172A', brand: '#3730A3', paper: '#F8F9FA' },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    :root {
+      --ink: #0F172A; --muted: #64748B; --line: #E7E9EE;
+      --brand: #3730A3; --brand-hi: #4338CA; --brand-lo: #2E2785; --soft: #EEF2FF;
+    }
+    html, body { height: 100%; }
+    body { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; background: #F8F9FA; color: var(--ink); -webkit-font-smoothing: antialiased; }
+    .app-h { height: 100vh; height: 100dvh; }
+    .font-serif { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+
+    /* ---------- Background ---------- */
+    .canvas {
+      background:
+        radial-gradient(900px 480px at 88% -6%, rgba(55,48,163,.09), transparent 60%),
+        radial-gradient(700px 420px at -4% 8%, rgba(16,185,129,.06), transparent 60%),
+        #F8F9FA;
+    }
+    .dotgrid {
+      background-image: radial-gradient(rgba(15,23,42,.11) 1px, transparent 1px);
+      background-size: 22px 22px;
+      -webkit-mask-image: radial-gradient(ellipse 60% 70% at 72% 32%, #000 0%, transparent 70%);
+      mask-image: radial-gradient(ellipse 60% 70% at 72% 32%, #000 0%, transparent 70%);
+    }
+
+    /* ---------- Elevated white card ---------- */
+    .card {
+      background: #fff;
+      border: 1px solid rgba(15,23,42,.07);
+      border-radius: 22px;
+      box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(15,23,42,.05), 0 8px 18px -10px rgba(15,23,42,.12), 0 28px 50px -32px rgba(55,48,163,.24);
+    }
+
+    /* ---------- Interactive 3D tilt + lift ---------- */
+    .tilt {
+      --rx: 0deg; --ry: 0deg; --lift: 0px;
+      position: relative;
+      transform: perspective(1000px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--lift));
+      transition: transform .18s ease-out, box-shadow .3s ease, border-color .3s ease, background .3s ease;
+      will-change: transform;
+    }
+    .tilt:hover, .tilt.is-lifted {
+      --lift: -4px;
+      border-color: rgba(55,48,163,.22);
+      box-shadow: inset 0 1px 0 #fff, 0 2px 4px rgba(15,23,42,.05), 0 16px 28px -12px rgba(15,23,42,.16), 0 40px 70px -34px rgba(55,48,163,.40);
+    }
+    .tilt::after {
+      content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
+      background: radial-gradient(440px circle at var(--mx, 50%) var(--my, 50%), rgba(55,48,163,.07), transparent 45%);
+    }
+    .tilt:hover::after { opacity: 1; }
+    @media (hover: none) { .tilt:hover { --lift: 0px; } }
+
+    /* ---------- Tactile 3D buttons ---------- */
+    .btn-3d {
+      color: #fff; font-weight: 700;
+      background: linear-gradient(180deg, #4F46E5 0%, #3730A3 100%);
+      border: 0; cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.30), inset 0 -2px 0 rgba(0,0,0,.16), 0 1px 0 #2E2785, 0 3px 0 #29237A, 0 7px 12px -2px rgba(55,48,163,.35), 0 16px 26px -10px rgba(55,48,163,.50);
+      transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .btn-3d:hover:not(:disabled) {
+      transform: translateY(-2px); filter: brightness(1.06);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.34), inset 0 -2px 0 rgba(0,0,0,.16), 0 1px 0 #2E2785, 0 5px 0 #29237A, 0 12px 16px -4px rgba(55,48,163,.38), 0 22px 34px -12px rgba(55,48,163,.55);
+    }
+    .btn-3d:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.2), inset 0 -1px 0 rgba(0,0,0,.2), 0 1px 0 #29237A, 0 3px 6px -2px rgba(55,48,163,.4);
+    }
+    .btn-3d:disabled { cursor: progress; opacity: .92; }
+    .btn-3d:focus-visible, .btn-soft:focus-visible, .pill-btn:focus-visible { outline: 2px solid #818CF8; outline-offset: 3px; }
+    .btn-soft {
+      background: #fff; color: var(--ink); font-weight: 600; cursor: pointer;
+      border: 1px solid rgba(15,23,42,.10); border-radius: 12px;
+      box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(15,23,42,.05), 0 3px 0 rgba(15,23,42,.05), 0 10px 16px -10px rgba(15,23,42,.22);
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .btn-soft:hover { transform: translateY(-2px); border-color: rgba(55,48,163,.35); color: var(--brand); box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(15,23,42,.05), 0 5px 0 rgba(15,23,42,.05), 0 16px 22px -12px rgba(55,48,163,.35); }
+    .btn-soft:active { transform: translateY(1px); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(15,23,42,.06); }
+
+    /* ---------- Voice input: mic button + EN/HI toggle ---------- */
+    .mic-btn {
+      position: relative; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; cursor: pointer;
+      background: #fff; color: #475569; border: 1px solid rgba(15,23,42,.10);
+      box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(15,23,42,.05), 0 3px 0 rgba(15,23,42,.05), 0 10px 16px -10px rgba(15,23,42,.22);
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, color .15s ease, background .2s ease;
+    }
+    .mic-btn:hover { transform: translateY(-2px); color: var(--brand); border-color: rgba(55,48,163,.35); box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(15,23,42,.05), 0 5px 0 rgba(15,23,42,.05), 0 16px 22px -12px rgba(55,48,163,.35); }
+    .mic-btn:active { transform: translateY(1px); }
+    .mic-btn:focus-visible, .lang-toggle button:focus-visible { outline: 2px solid #818CF8; outline-offset: 2px; }
+    .mic-btn.rec {
+      color: #fff; border-color: transparent; background: linear-gradient(180deg, #FB7185, #E11D48);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.12), 0 2px 0 #9F1239, 0 10px 18px -6px rgba(225,29,72,.55);
+    }
+    .mic-btn.rec:hover { color: #fff; }
+    .mic-btn.rec::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; border: 2px solid rgba(244,63,94,.65); animation: micring 1.4s ease-out infinite; pointer-events: none; }
+    @keyframes micring { from { transform: scale(1); opacity: .9; } to { transform: scale(1.65); opacity: 0; } }
+    .lang-toggle { display: inline-flex; padding: 3px; border-radius: 10px; background: #ECEEF3; box-shadow: inset 0 1px 2px rgba(15,23,42,.10); flex-shrink: 0; }
+    .lang-toggle button { padding: .3rem .5rem; border-radius: 8px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #64748B; cursor: pointer; transition: all .2s; }
+    .lang-toggle button:hover { color: var(--ink); }
+    .lang-toggle button.active { background: #fff; color: var(--brand); box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(15,23,42,.12), 0 4px 8px -4px rgba(55,48,163,.35); }
+
+    /* ---------- Icon tiles ---------- */
+    .tile {
+      width: 48px; height: 48px; border-radius: 15px; display: grid; place-items: center; flex-shrink: 0; color: var(--brand);
+      background: linear-gradient(180deg, #fff, #F1F2FB); border: 1px solid rgba(55,48,163,.14);
+      box-shadow: inset 0 1px 0 #fff, 0 2px 0 rgba(55,48,163,.12), 0 10px 16px -8px rgba(55,48,163,.35);
+    }
+    .tile-sm { width: 36px; height: 36px; border-radius: 12px; }
+    .logo-mark {
+      width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: #fff;
+      background: linear-gradient(180deg, #4F46E5, #3730A3);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 0 #29237A, 0 8px 14px -6px rgba(55,48,163,.55);
+    }
+
+    /* ---------- Pill switcher with sliding indicator ---------- */
+    .pill-track { position: relative; display: inline-flex; padding: 4px; border-radius: 9999px; background: #ECEEF3; box-shadow: inset 0 1px 2px rgba(15,23,42,.10); }
+    .pill-ind { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; border-radius: 9999px; background: #fff;
+      box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(15,23,42,.12), 0 6px 12px -6px rgba(55,48,163,.40); }
+    .pill-ind.ready { transition: transform .38s cubic-bezier(.3,.8,.3,1), width .38s cubic-bezier(.3,.8,.3,1); }
+    .pill-btn { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: .45rem; padding: .5rem 1rem; border-radius: 9999px; font-size: .875rem; font-weight: 600; color: var(--muted); transition: color .2s; white-space: nowrap; cursor: pointer; }
+    .pill-btn:hover { color: var(--ink); }
+    .pill-btn.active { color: var(--brand); }
+
+    /* ---------- Server status dot ---------- */
+    .sdot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: #94A3B8; flex-shrink: 0; }
+    .sdot.on { background: #10B981; box-shadow: 0 0 0 3px rgba(16,185,129,.18); }
+    .sdot.on::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #10B981; animation: ping 1.9s cubic-bezier(0,0,.2,1) infinite; }
+    .sdot.off { background: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,.16); }
+    .sdot.wait { animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes ping { 75%, 100% { transform: scale(2.6); opacity: 0; } }
+    @keyframes pulse { 50% { opacity: .35; } }
+
+    /* ---------- Hero 3D emblem ---------- */
+    .scene { position: relative; width: 100%; max-width: 460px; height: 400px; margin-inline: auto; perspective: 1200px; }
+    .sway, .emblem { position: absolute; inset: 0; transform-style: preserve-3d; }
+    .sway { animation: sway 11s ease-in-out infinite; }
+    @keyframes sway { 0%, 100% { transform: rotateY(-7deg) rotateX(2deg); } 50% { transform: rotateY(7deg) rotateX(-2deg); } }
+    .layer { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; }
+    .ground { width: 320px; height: 70px; margin: -35px 0 0 -160px; transform: translate3d(0, 160px, -120px) rotateX(78deg); background: radial-gradient(closest-side, rgba(55,48,163,.30), transparent); filter: blur(6px); }
+    .sheet { width: 224px; height: 292px; margin: -146px 0 0 -112px; border-radius: 20px; background: #fff; padding: 24px 20px;
+      border: 1px solid rgba(15,23,42,.08); box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 24px 44px -20px rgba(15,23,42,.30); }
+    .sheet-back  { background: #E6E9FB; transform: translate3d(-58px, 16px, -80px) rotateZ(-8deg); }
+    .sheet-mid   { transform: translate3d(-20px, 8px, -36px) rotateZ(-3deg); }
+    .sheet-front { transform: translate3d(28px, -6px, 8px) rotateZ(3deg); }
+    .ln { display: block; height: 7px; border-radius: 6px; background: #E5E8EF; margin-bottom: 11px; }
+    .ln.ink { background: #C7CCF3; height: 9px; width: 55%; margin-bottom: 16px; }
+    .ln.amber { background: #FDE68A; }
+    .ln.rose { background: #FECDD3; }
+    .coin { width: 116px; height: 116px; margin: -58px 0 0 -58px; transform: translate3d(-78px, 84px, 96px) rotateZ(-7deg); }
+    .coin .slab { position: absolute; inset: 0; border-radius: 34px; background: #29237A; transform: translateZ(calc(var(--i) * -3px)); }
+    .coin .face { position: absolute; inset: 0; border-radius: 34px; display: grid; place-items: center; color: #fff;
+      background: linear-gradient(145deg, #6366F1 0%, #3730A3 60%, #2E2785 100%);
+      box-shadow: inset 0 2px 0 rgba(255,255,255,.4), inset 0 -3px 0 rgba(0,0,0,.18), 0 18px 30px -10px rgba(55,48,163,.6); }
+    .chip { transform: translate3d(calc(-50% + var(--x)), calc(-50% + var(--y)), var(--z)); }
+    .bob { display: flex; align-items: center; gap: 8px; white-space: nowrap; padding: 9px 14px; border-radius: 9999px; background: #fff; font-size: 12.5px; font-weight: 700;
+      border: 1px solid rgba(15,23,42,.07); box-shadow: inset 0 1px 0 #fff, 0 2px 0 rgba(15,23,42,.04), 0 14px 24px -10px rgba(15,23,42,.30); animation: bob 5.5s ease-in-out infinite; }
+    .bob .bi { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 9999px; }
+    @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+    @media (max-width: 640px) { .scene { height: 320px; } .sway { scale: .72; } }
+
+    /* ---------- Dropzone ---------- */
+    .dropzone { background: #fff; border: 2px dashed rgba(55,48,163,.28); border-radius: 20px; cursor: pointer;
+      box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(15,23,42,.04), 0 12px 22px -16px rgba(15,23,42,.18); }
+    .dropzone:hover, .dropzone:focus-visible { border-color: var(--brand); outline: none; }
+    .dropzone.drag { background: var(--soft); border-style: solid; border-color: var(--brand); --lift: -7px; }
+
+    /* ---------- Risk meter / checklist ---------- */
+    .seg { flex: 1; height: 6px; border-radius: 9999px; background: #E5E7EB; }
+    .step-box { transition: all .2s; }
+    .step-done .step-box { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .step-done .step-text { text-decoration: line-through; color: #94A3B8; }
+
+    /* ---------- Animations ---------- */
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    .rise { animation: rise .6s cubic-bezier(.2,.7,.2,1) backwards; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .shimmer { background-image: linear-gradient(110deg, #fff 30%, #EEF0F6 50%, #fff 70%); background-size: 200% 100%; animation: shimmer 1.5s infinite linear; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 18px; height: 18px; border-radius: 9999px; border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .8s linear infinite; }
+    @keyframes dot { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } }
+    .tdot { animation: dot 1.2s infinite ease-in-out; }
+    .tdot:nth-child(2) { animation-delay: .15s; } .tdot:nth-child(3) { animation-delay: .3s; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
+    /* ---------- Scrollbars ---------- */
+    * { scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* ---------- Markdown in AI replies ---------- */
+    .prose-nyay { font-size: .94rem; line-height: 1.75; color: #334155; overflow-wrap: anywhere; }
+    .prose-nyay > :first-child { margin-top: 0; } .prose-nyay > :last-child { margin-bottom: 0; }
+    .prose-nyay p { margin: 0 0 .8rem; }
+    .prose-nyay strong { color: var(--ink); font-weight: 700; }
+    .prose-nyay ul { list-style: disc; padding-left: 1.35rem; margin: .4rem 0 .9rem; }
+    .prose-nyay ol { list-style: decimal; padding-left: 1.35rem; margin: .4rem 0 .9rem; }
+    .prose-nyay li { margin-bottom: .35rem; } .prose-nyay li::marker { color: var(--brand); }
+    .prose-nyay h1, .prose-nyay h2, .prose-nyay h3, .prose-nyay h4 { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; color: var(--ink); margin: 1.1rem 0 .4rem; line-height: 1.2; }
+    .prose-nyay h1 { font-size: 1.7rem; } .prose-nyay h2 { font-size: 1.5rem; } .prose-nyay h3 { font-size: 1.3rem; } .prose-nyay h4 { font-size: 1.15rem; }
+    .prose-nyay a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+    .prose-nyay blockquote { border-left: 3px solid #C7D2FE; background: #F5F7FF; padding: .5rem .9rem; border-radius: 0 .6rem .6rem 0; margin: .8rem 0; color: #475569; }
+    .prose-nyay code { background: #F1F3F9; border: 1px solid #E5E8F0; padding: .1rem .35rem; border-radius: .35rem; font-size: .85em; color: var(--brand-lo); }
+    .prose-nyay pre { background: #F8F9FC; border: 1px solid #E5E8F0; padding: .8rem 1rem; border-radius: .75rem; overflow-x: auto; margin: .8rem 0; }
+    .prose-nyay pre code { background: none; border: 0; padding: 0; color: var(--ink); }
+    .prose-nyay hr { border: 0; border-top: 1px solid var(--line); margin: 1.1rem 0; }
+    .prose-nyay table { width: 100%; border-collapse: collapse; margin: .8rem 0; font-size: .85rem; display: block; overflow-x: auto; }
+    .prose-nyay th, .prose-nyay td { border: 1px solid var(--line); padding: .45rem .65rem; text-align: left; }
+    .prose-nyay th { background: #F5F7FF; color: var(--brand-lo); }
+  </style>
+</head>
+
+<body class="h-full overflow-hidden">
+  <div class="canvas fixed inset-0 -z-10"></div>
+
+  <div class="app-h flex flex-col">
+
+    <!-- Shown only if this file was opened by double-click -->
+    <div id="fileWarn" class="hidden shrink-0 px-4 py-2.5 text-xs sm:text-sm bg-amber-50 border-b border-amber-200 text-amber-900 text-center">
+      This page was opened as a file. Start your server (<code class="font-semibold">uvicorn main:app --reload</code>) and open
+      <strong>http://127.0.0.1:8000</strong> instead, so the AI features can connect.
+    </div>
+
+    <!-- ===================== NAVBAR ===================== -->
+    <header class="shrink-0 relative z-30 border-b border-slate-900/5 bg-white/75 backdrop-blur-xl">
+      <div class="max-w-6xl mx-auto h-16 px-4 sm:px-6 flex items-center justify-between gap-3">
+        <a href="#" id="brand" class="flex items-center gap-2.5 shrink-0" aria-label="jatinSARTHI AI home">
+          <span class="logo-mark"><i data-lucide="scale" class="w-[18px] h-[18px]"></i></span>
+          <span class="hidden sm:flex items-baseline gap-1.5">
+            <span class="font-serif text-[27px] leading-none text-ink">jatinSARTHI</span>
+            <span class="text-[10px] font-extrabold tracking-wider px-1.5 py-0.5 rounded-md bg-brand text-white">AI</span>
+          </span>
+        </a>
+
+        <div class="pill-track" id="navPill" role="tablist" aria-label="Switch view">
+          <span class="pill-ind"></span>
+          <button type="button" role="tab" class="pill-btn active" data-v="analyzer" aria-selected="true">
+            <i data-lucide="file-search" class="w-4 h-4"></i>
+            <span class="hidden md:inline">Document Analyzer</span><span class="md:hidden">Analyzer</span>
+          </button>
+          <button type="button" role="tab" class="pill-btn" data-v="chat" aria-selected="false">
+            <i data-lucide="message-square-text" class="w-4 h-4"></i>
+            <span class="hidden md:inline">Legal AI Chat</span><span class="md:hidden">Chat</span>
+          </button>
+        </div>
+
+        <button type="button" id="statusBtn" class="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:border-slate-300 transition" title="Check server connection">
+          <span id="statusDot" class="sdot wait"></span>
+          <span id="statusLabel" class="hidden sm:inline">Checking…</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 min-h-0 relative">
+
+      <!-- ===================== VIEW 1: DOCUMENT ANALYZER ===================== -->
+      <section id="view-analyzer" class="absolute inset-0 overflow-y-auto">
+
+        <!-- Hero -->
+        <div id="hero" class="relative">
+          <div class="dotgrid absolute inset-0 pointer-events-none"></div>
+          <div class="relative max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 lg:pt-16 pb-6 grid lg:grid-cols-2 gap-6 lg:gap-10 items-center">
+            <div class="rise">
+              <div class="inline-flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-600 shadow-sm">
+                <span class="w-5 h-5 rounded-full bg-brand text-white grid place-items-center"><i data-lucide="sparkles" class="w-3 h-3"></i></span>
+                Built for Indian citizens · BNS 2023 aware
+              </div>
+              <h1 class="font-serif text-[44px] sm:text-6xl lg:text-[68px] leading-[1.02] text-ink mt-6">
+                Legal documents,<br /><span class="italic text-brand">finally in plain language.</span>
+              </h1>
+              <p class="text-slate-600 text-base sm:text-lg leading-relaxed mt-5 max-w-xl">
+                Upload a notice, agreement or FIR copy. jatinSARTHI explains it simply, flags risks and deadlines, and tells you exactly what to do next.
+              </p>
+              <div class="flex flex-wrap items-center gap-3 mt-7">
+                <button type="button" id="heroCta" class="btn-3d inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3.5 rounded-2xl text-[15px]">
+                  <i data-lucide="file-search" class="w-[18px] h-[18px]"></i> Analyze a document
+                </button>
+                <button type="button" id="heroChat" class="btn-soft inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-3.5 rounded-2xl text-[15px]">
+                  <i data-lucide="message-square-text" class="w-[18px] h-[18px]"></i> Ask a legal question
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-x-6 gap-y-2 mt-7 text-sm text-slate-500">
+                <span class="inline-flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i> Plain-language summary</span>
+                <span class="inline-flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i> Deadline alerts</span>
+                <span class="inline-flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i> BNS &amp; DPDP aware</span>
+              </div>
+            </div>
+
+            <!-- 3D emblem -->
+            <div class="rise" style="animation-delay:.1s" aria-hidden="true">
+              <div class="scene" id="scene">
+                <div class="sway">
+                  <div class="emblem" id="emblem">
+                    <div class="layer ground"></div>
+                    <div class="layer sheet sheet-back"></div>
+                    <div class="layer sheet sheet-mid">
+                      <span class="ln ink"></span><span class="ln"></span><span class="ln" style="width:88%"></span><span class="ln" style="width:70%"></span>
+                    </div>
+                    <div class="layer sheet sheet-front">
+                      <span class="ln ink"></span>
+                      <span class="ln"></span><span class="ln" style="width:92%"></span>
+                      <span class="ln amber" style="width:80%"></span>
+                      <span class="ln" style="width:96%"></span><span class="ln" style="width:60%"></span>
+                      <span class="ln rose" style="width:74%"></span>
+                      <span class="ln"></span><span class="ln" style="width:84%"></span><span class="ln" style="width:45%"></span>
+                    </div>
+                    <div class="layer coin">
+                      <span class="slab" style="--i:6"></span><span class="slab" style="--i:5"></span><span class="slab" style="--i:4"></span>
+                      <span class="slab" style="--i:3"></span><span class="slab" style="--i:2"></span><span class="slab" style="--i:1"></span>
+                      <div class="face"><i data-lucide="scale" class="w-14 h-14" stroke-width="1.6"></i></div>
+                    </div>
+                    <div class="layer chip" style="--x:112px;--y:-132px;--z:130px">
+                      <div class="bob text-emerald-700"><span class="bi bg-emerald-100"><i data-lucide="check" class="w-3 h-3"></i></span>Plain-language summary</div>
+                    </div>
+                    <div class="layer chip" style="--x:-128px;--y:-92px;--z:150px">
+                      <div class="bob text-brand" style="animation-delay:-1.8s"><span class="bi bg-indigo-100"><i data-lucide="landmark" class="w-3 h-3"></i></span>BNS 2023 cited</div>
+                    </div>
+                    <div class="layer chip" style="--x:120px;--y:126px;--z:140px">
+                      <div class="bob text-amber-700" style="animation-delay:-3.4s"><span class="bi bg-amber-100"><i data-lucide="clock" class="w-3 h-3"></i></span>Deadline in 15 days</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload card -->
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 pt-4 pb-6">
+          <div id="uploadCard" class="card p-5 sm:p-8 rise scroll-mt-6" style="animation-delay:.15s">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 class="font-serif text-3xl text-ink leading-tight">Analyze your document</h2>
+                <p class="text-sm text-slate-500 mt-1">Upload a file or paste the text. Results appear below in seconds.</p>
+              </div>
+              <div class="pill-track" id="modePill">
+                <span class="pill-ind"></span>
+                <button type="button" class="pill-btn active" data-v="file"><i data-lucide="upload" class="w-4 h-4"></i> Upload file</button>
+                <button type="button" class="pill-btn" data-v="text"><i data-lucide="clipboard-paste" class="w-4 h-4"></i> Paste text</button>
+              </div>
+            </div>
+
+            <!-- File panel -->
+            <div id="panelFile">
+              <input id="fileInput" type="file" class="hidden" accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain" />
+              <div id="dropzone" class="dropzone tilt px-5 py-12 text-center" data-tilt="2" tabindex="0" role="button" aria-label="Upload a document">
+                <div id="dropEmpty">
+                  <div class="tile mx-auto" style="width:60px;height:60px;border-radius:18px"><i data-lucide="upload" class="w-6 h-6"></i></div>
+                  <p class="mt-5 font-bold text-ink text-lg">Drag &amp; drop your document here</p>
+                  <p class="text-sm text-slate-500 mt-1">or <span class="text-brand font-semibold underline underline-offset-4">browse files</span> from your device</p>
+                  <div class="mt-5 flex flex-wrap justify-center gap-2 text-[11px] font-semibold text-slate-500">
+                    <span class="px-2.5 py-1 rounded-full bg-slate-100">PDF</span><span class="px-2.5 py-1 rounded-full bg-slate-100">PNG</span>
+                    <span class="px-2.5 py-1 rounded-full bg-slate-100">JPG / JPEG</span><span class="px-2.5 py-1 rounded-full bg-slate-100">TXT</span>
+                    <span class="px-2.5 py-1 rounded-full bg-indigo-50 text-brand">Up to 10 MB</span>
+                  </div>
+                </div>
+                <div id="dropFile" class="hidden">
+                  <div class="mx-auto max-w-md flex items-center gap-4 text-left p-4 rounded-2xl bg-white border border-indigo-100 shadow-[0_10px_24px_-14px_rgba(55,48,163,.45)]">
+                    <div class="tile"><i data-lucide="file-text" class="w-6 h-6"></i></div>
+                    <div class="min-w-0 flex-1">
+                      <div id="fileName" class="font-bold text-ink truncate"></div>
+                      <div id="fileMeta" class="text-xs text-slate-500 mt-0.5"></div>
+                    </div>
+                    <button id="removeFile" type="button" class="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" aria-label="Remove file"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-3">Click anywhere in this box to choose a different file</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paste panel -->
+            <div id="panelText" class="hidden">
+              <textarea id="docText" rows="9" maxlength="50000" placeholder="Paste the text of your legal notice, agreement or letter here…"
+                class="w-full resize-y rounded-2xl bg-slate-50 border border-slate-200 px-4 py-4 text-sm leading-relaxed text-ink placeholder-slate-400 focus:outline-none focus:bg-white focus:border-brand focus:ring-4 focus:ring-indigo-100 transition"></textarea>
+              <div class="flex justify-between text-xs text-slate-400 mt-2 px-1">
+                <span>Tip: include the full text for the most accurate analysis.</span>
+                <span><span id="docCount">0</span> / 50,000</span>
+              </div>
+            </div>
+
+            <div class="mt-7 flex flex-col sm:flex-row sm:items-center gap-4">
+              <button id="analyzeBtn" type="button" class="btn-3d inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl text-[15px] sm:min-w-[300px]">
+                <span id="analyzeIdle" class="inline-flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5"></i> Analyze Document</span>
+                <span id="analyzeBusy" class="hidden items-center gap-3"><span class="spinner"></span> Scanning clauses &amp; checking BNS 2023...</span>
+              </button>
+              <p id="analyzeStatus" class="hidden text-sm text-slate-500"></p>
+            </div>
+          </div>
+
+          <!-- Results -->
+          <div id="results" class="mt-8 scroll-mt-6"></div>
+
+          <p class="text-center text-[11px] text-slate-400 mt-10 pb-6">
+            jatinSARTHI AI shares legal awareness, not official legal advice. For serious matters, consult a qualified advocate · Free legal aid: NALSA 15100
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================== VIEW 2: LEGAL AI CHAT ===================== -->
+      <section id="view-chat" class="absolute inset-0 hidden flex flex-col">
+        <div class="shrink-0 max-w-3xl w-full mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-3">
+          <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Legal AI Chat · English, Hindi or Hinglish</p>
+          <button id="newChat" type="button" class="btn-soft hidden items-center gap-1.5 px-3 py-1.5 text-xs"><i data-lucide="plus" class="w-3.5 h-3.5"></i> New chat</button>
+        </div>
+
+        <div id="chatScroll" class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
+          <div id="chatInner" class="max-w-3xl mx-auto space-y-5">
+            <div id="chatEmpty" class="rise">
+              <div class="text-center pt-4 sm:pt-10 pb-8">
+                <div class="logo-mark mx-auto" style="width:56px;height:56px;border-radius:17px"><i data-lucide="scale" class="w-7 h-7"></i></div>
+                <h2 class="font-serif text-4xl sm:text-5xl text-ink mt-6 leading-tight">What's your legal question?</h2>
+                <p class="text-slate-500 mt-3 max-w-lg mx-auto leading-relaxed">Describe your situation in your own words. I'll explain your rights under Indian law and your practical next steps.</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button type="button" class="starter card tilt p-5 text-left flex gap-4" data-tilt="4" data-q="My landlord is refusing to return my security deposit after I vacated the flat. What are my rights and what steps should I take?">
+                  <div class="tile"><i data-lucide="building-2" class="w-5 h-5"></i></div>
+                  <div><div class="font-bold text-ink">Tenancy</div><div class="text-sm text-slate-500 mt-1 leading-snug">Landlord won't return my security deposit</div></div>
+                </button>
+                <button type="button" class="starter card tilt p-5 text-left flex gap-4" data-tilt="4" data-q="My employer terminated me suddenly without notice or any written reason. Is this legal and what can I do about it?">
+                  <div class="tile"><i data-lucide="briefcase" class="w-5 h-5"></i></div>
+                  <div><div class="font-bold text-ink">Employment</div><div class="text-sm text-slate-500 mt-1 leading-snug">Fired suddenly without notice or reason</div></div>
+                </button>
+                <button type="button" class="starter card tilt p-5 text-left flex gap-4" data-tilt="4" data-q="What are my basic rights if I am arrested, or if the police refuse to register my FIR, under the new BNS 2023 and BNSS 2023 laws?">
+                  <div class="tile"><i data-lucide="gavel" class="w-5 h-5"></i></div>
+                  <div><div class="font-bold text-ink">BNS 2023</div><div class="text-sm text-slate-500 mt-1 leading-snug">Arrest, FIR and your rights under the new laws</div></div>
+                </button>
+                <button type="button" class="starter card tilt p-5 text-left flex gap-4" data-tilt="4" data-q="I bought a defective product online and the seller refuses to refund or replace it. How do I file a consumer complaint?">
+                  <div class="tile"><i data-lucide="shopping-bag" class="w-5 h-5"></i></div>
+                  <div><div class="font-bold text-ink">Consumer Rights</div><div class="text-sm text-slate-500 mt-1 leading-snug">Defective product, seller won't refund</div></div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="shrink-0 px-4 sm:px-6 pb-4 pt-2">
+          <div class="max-w-3xl mx-auto">
+            <form id="chatForm" class="card p-2 flex items-end gap-2 focus-within:border-brand/40 focus-within:ring-4 focus-within:ring-indigo-100 transition" style="border-radius:20px">
+              <textarea id="chatInput" rows="1" maxlength="2000" placeholder="Describe your legal question… (Enter to send, Shift+Enter for new line)"
+                class="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none max-h-40"></textarea>
+              <div class="flex items-end gap-2 shrink-0">
+                <div id="langToggle" class="lang-toggle mb-[6px]" role="group" aria-label="Voice language">
+                  <button type="button" class="active" data-lang="en-IN" aria-pressed="true" title="Speak in Indian English">EN</button>
+                  <button type="button" data-lang="hi-IN" aria-pressed="false" title="Speak in Hindi / Hinglish">HI</button>
+                </div>
+                <button id="micBtn" type="button" class="mic-btn" aria-pressed="false" aria-label="Start voice input" title="Speak your question"><i data-lucide="mic" class="w-5 h-5"></i></button>
+                <button id="chatSend" type="submit" class="btn-3d shrink-0 w-11 h-11 rounded-xl grid place-items-center" aria-label="Send"><i data-lucide="arrow-up" class="w-5 h-5"></i></button>
+              </div>
+            </form>
+            <p class="text-[11px] text-slate-400 text-center mt-2">Legal awareness only, not official legal advice.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 hidden px-4 py-2.5 rounded-xl text-sm font-semibold bg-ink text-white shadow-2xl"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------
+  const $  = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const icons = () => { try { if (window.lucide) window.lucide.createIcons(); } catch (e) {} };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
+
+  class ApiError extends Error {}
+  const readJson = async (res) => { try { return await res.json(); } catch (e) { return null; } };
+
+  function extractDetail(data, status) {
+    if (data && typeof data.detail === 'string') return data.detail;
+    if (status === 422) return 'Please check your input and try again.';
+    if (status === 413) return 'That input is too large. Please use a smaller file or shorter text.';
+    return 'Something went wrong on the server. Please try again.';
+  }
+  function friendlyError(err) {
+    if (err && err.name === 'AbortError') return 'The request took too long. Please try again, or use a smaller file.';
+    if (err instanceof ApiError) return err.message;
+    return "Can't reach the jatinSARTHI server. Make sure it is running (uvicorn main:app --reload) and that you opened this page at http://127.0.0.1:8000.";
+  }
+
+  // Markdown -> safe HTML (never shows raw HTML if the sanitizer failed to load)
+  function renderMarkdown(text) {
+    try {
+      if (window.marked && window.DOMPurify) return DOMPurify.sanitize(marked.parse(String(text), { gfm: true, breaks: true }));
+    } catch (e) {}
+    return '<p style="white-space:pre-wrap">' + esc(text) + '</p>';
+  }
+  if (window.DOMPurify) {
+    DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+      if (node.tagName === 'A') { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer'); }
+    });
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch (e) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy'); ta.remove(); return ok;
+      } catch (e2) { return false; }
+    }
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg; t.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add('hidden'), 3200);
+  }
+
+  // ---------------------------------------------------------------
+  // Pill switchers with a sliding indicator (navbar + upload/paste toggle)
+  // ---------------------------------------------------------------
+  const pills = [];
+  function bindPill(track, onChange) {
+    const ind = $('.pill-ind', track), btns = $$('.pill-btn', track);
+    const place = () => {
+      const a = $('.pill-btn.active', track);
+      if (!a || !a.offsetWidth) return;
+      ind.style.width = a.offsetWidth + 'px';
+      ind.style.transform = `translateX(${a.offsetLeft}px)`;
+    };
+    const set = (v) => {
+      btns.forEach(b => { const on = b.dataset.v === v; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+      place();
+    };
+    btns.forEach(b => b.addEventListener('click', () => { set(b.dataset.v); onChange(b.dataset.v); }));
+    place();
+    requestAnimationFrame(() => ind.classList.add('ready'));
+    pills.push(place);
+    return { set, place };
+  }
+  const replacePills = () => pills.forEach(fn => fn());
+  window.addEventListener('resize', replacePills);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(replacePills);
+
+  // ---------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------
+  const navPill = bindPill($('#navPill'), (v) => showTab(v));
+  function showTab(tab) {
+    $('#view-analyzer').classList.toggle('hidden', tab !== 'analyzer');
+    $('#view-chat').classList.toggle('hidden', tab !== 'chat');
+    navPill.set(tab);
+    replacePills();
+    if (tab === 'chat') { if (chatEmpty.classList.contains('hidden')) scrollChat(false); if (isDesktop()) setTimeout(() => chatInput.focus(), 60); }
+    else stopListening();
+  }
+  $('#brand').addEventListener('click', (e) => { e.preventDefault(); showTab('analyzer'); $('#view-analyzer').scrollTo({ top: 0, behavior: 'smooth' }); });
+  $('#heroChat').addEventListener('click', () => showTab('chat'));
+  $('#heroCta').addEventListener('click', () => $('#uploadCard').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+  // ---------------------------------------------------------------
+  // Server status dot (pings /health on load, every 20s, and on click)
+  // ---------------------------------------------------------------
+  async function ping() {
+    const dot = $('#statusDot'), label = $('#statusLabel'), btn = $('#statusBtn');
+    dot.className = 'sdot wait'; label.textContent = 'Checking…';
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const r = await fetch('/health', { cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok) throw new Error('bad status');
+      dot.className = 'sdot on'; label.textContent = 'Server online'; btn.title = 'Server is running';
+    } catch (e) {
+      dot.className = 'sdot off'; label.textContent = 'Server offline'; btn.title = 'Cannot reach the server. Click to retry.';
+    } finally { clearTimeout(t); }
+  }
+  $('#statusBtn').addEventListener('click', ping);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });
+  if (location.protocol === 'file:') $('#fileWarn').classList.remove('hidden');
+
+  // ---------------------------------------------------------------
+  // 3D: mouse-tracking hero emblem + tilt cards (lightweight, no libraries)
+  // ---------------------------------------------------------------
+  (function heroTracker() {
+    const scene = $('#scene'), emblem = $('#emblem');
+    if (!scene || !emblem || reduceMotion || !finePointer) return;
+    let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
+    const loop = () => {
+      cx += (tx - cx) * 0.09; cy += (ty - cy) * 0.09;
+      emblem.style.transform = `rotateX(${cx.toFixed(2)}deg) rotateY(${cy.toFixed(2)}deg)`;
+      raf = (Math.abs(tx - cx) > 0.02 || Math.abs(ty - cy) > 0.02) ? requestAnimationFrame(loop) : null;
+    };
+    const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+    window.addEventListener('pointermove', (e) => {
+      if (!scene.offsetParent) return;                       // analyzer view hidden
+      const r = scene.getBoundingClientRect();
+      const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (window.innerWidth / 2)));
+      const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (window.innerHeight / 2)));
+      ty = nx * 22; tx = -ny * 16; kick();
+    }, { passive: true });
+    document.addEventListener('pointerleave', () => { tx = 0; ty = 0; kick(); });
+  })();
+
+  function initTilt(root = document) {
+    if (reduceMotion || !finePointer) return;
+    $$('[data-tilt]', root).forEach(el => {
+      if (el._tilt) return; el._tilt = true;
+      const max = parseFloat(el.dataset.tilt) || 4;
+      el.addEventListener('pointermove', (e) => {
+        const r = el.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+        el.style.setProperty('--ry', ((px - 0.5) * 2 * max).toFixed(2) + 'deg');
+        el.style.setProperty('--rx', ((0.5 - py) * 2 * max).toFixed(2) + 'deg');
+        el.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
+        el.style.setProperty('--my', (py * 100).toFixed(1) + '%');
+      });
+      el.addEventListener('pointerleave', () => { el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); });
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // DOCUMENT ANALYZER
+  // ---------------------------------------------------------------
+  const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'txt'];
+  const MAX_BYTES = 10 * 1024 * 1024, MAX_TEXT = 50000;
+  let mode = 'file', pickedFile = null, analyzing = false, lastReport = null, statusTimer = null;
+
+  const dropzone = $('#dropzone'), fileInput = $('#fileInput'), results = $('#results');
+  const docText = $('#docText'), analyzeBtn = $('#analyzeBtn');
+
+  const modePill = bindPill($('#modePill'), (v) => setMode(v));
+  function setMode(m) {
+    mode = m;
+    $('#panelFile').classList.toggle('hidden', m !== 'file');
+    $('#panelText').classList.toggle('hidden', m !== 'text');
+    modePill.set(m);
+  }
+
+  const formatSize = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(2) + ' MB';
+
+  function renderFile() {
+    $('#dropEmpty').classList.toggle('hidden', !!pickedFile);
+    $('#dropFile').classList.toggle('hidden', !pickedFile);
+    if (pickedFile) {
+      $('#fileName').textContent = pickedFile.name;
+      $('#fileMeta').textContent = `${pickedFile.name.split('.').pop().toUpperCase()} · ${formatSize(pickedFile.size)}`;
+    }
+  }
+  function pickFile(f) {
+    if (!f) return;
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (!ALLOWED.includes(ext)) { toast('Unsupported file. Please use PDF, PNG, JPG, JPEG or TXT.'); return; }
+    if (f.size === 0) { toast('That file is empty.'); return; }
+    if (f.size > MAX_BYTES) { toast('File is too large. Maximum size is 10 MB.'); return; }
+    pickedFile = f; renderFile();
+  }
+  dropzone.addEventListener('click', (e) => { if (!e.target.closest('#removeFile')) fileInput.click(); });
+  dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change', () => { pickFile(fileInput.files[0]); fileInput.value = ''; });
+  $('#removeFile').addEventListener('click', (e) => { e.stopPropagation(); pickedFile = null; renderFile(); });
+  ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+  dropzone.addEventListener('drop', (e) => pickFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]));
+  window.addEventListener('dragover', (e) => e.preventDefault());   // stop the browser opening files dropped outside the box
+  window.addEventListener('drop', (e) => e.preventDefault());
+  docText.addEventListener('input', () => { $('#docCount').textContent = docText.value.length.toLocaleString('en-IN'); });
+
+  const STATUS_LINES = ['Reading your document…', 'Scanning clauses & checking BNS 2023…', 'Spotting deadlines and obligations…', 'Matching applicable Indian laws…', 'Preparing your action plan…'];
+  function setAnalyzing(on) {
+    analyzing = on; analyzeBtn.disabled = on;
+    $('#analyzeIdle').classList.toggle('hidden', on);
+    $('#analyzeBusy').classList.toggle('hidden', !on);
+    $('#analyzeBusy').classList.toggle('inline-flex', on);
+    const st = $('#analyzeStatus'); clearInterval(statusTimer);
+    if (on) {
+      let i = 0; st.textContent = STATUS_LINES[0]; st.classList.remove('hidden');
+      statusTimer = setInterval(() => { i = (i + 1) % STATUS_LINES.length; st.textContent = STATUS_LINES[i]; }, 2600);
+    } else st.classList.add('hidden');
+  }
+
+  const skeleton = () => {
+    const b = (c) => `<div class="card shimmer ${c}"></div>`;
+    return `<div class="grid grid-cols-1 lg:grid-cols-12 gap-5">${b('lg:col-span-12 h-32')}${b('lg:col-span-7 h-60')}${b('lg:col-span-5 h-60')}${b('lg:col-span-7 h-52')}${b('lg:col-span-5 h-52')}</div>`;
+  };
+
+  function renderError(msg) {
+    results.innerHTML = `
+      <div class="card p-6 sm:p-7 rise flex gap-4" style="border-color:rgba(244,63,94,.25)">
+        <div class="tile" style="color:#E11D48;border-color:rgba(244,63,94,.25)"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>
+        <div><div class="font-serif text-2xl text-ink">We couldn't analyze that</div>
+        <p class="text-sm text-rose-700 mt-1 leading-relaxed">${esc(msg)}</p></div>
+      </div>`;
+    icons();
+  }
+
+  async function analyze() {
+    if (analyzing) return;
+    const fd = new FormData();
+    if (mode === 'file') {
+      if (!pickedFile) { toast('Please choose a file to analyze first.'); return; }
+      fd.append('file', pickedFile, pickedFile.name);
+    } else {
+      const t = docText.value.trim();
+      if (!t) { toast('Please paste some text to analyze first.'); return; }
+      if (t.length > MAX_TEXT) { toast('Text is too long. Keep it under 50,000 characters.'); return; }
+      fd.append('text', t);
+    }
+    setAnalyzing(true);
+    results.innerHTML = skeleton();
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 120000);
+    try {
+      const res = await fetch('/analyze', { method: 'POST', body: fd, signal: ctrl.signal });
+      const data = await readJson(res);
+      if (!res.ok) throw new ApiError(extractDetail(data, res.status));
+      if (!data || typeof data !== 'object') throw new ApiError('The server sent an unexpected reply. Please try again.');
+      renderResult(data);
+    } catch (err) {
+      renderError(friendlyError(err));
+      if (!(err instanceof ApiError)) ping();
+    } finally { clearTimeout(timer); setAnalyzing(false); }
+  }
+  analyzeBtn.addEventListener('click', analyze);
+
+  // ---- Bento result cards ----
+  const RISK = {
+    low:    { label: 'Low risk',    idx: 0, icon: 'shield-check', pill: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20', seg: '#10B981', glow: 'rgba(16,185,129,.16)' },
+    medium: { label: 'Medium risk', idx: 1, icon: 'shield-alert', pill: 'bg-amber-50 text-amber-700 ring-amber-600/25',     seg: '#F59E0B', glow: 'rgba(245,158,11,.18)' },
+    high:   { label: 'High risk',   idx: 2, icon: 'siren',        pill: 'bg-rose-50 text-rose-700 ring-rose-600/20',        seg: '#F43F5E', glow: 'rgba(244,63,94,.18)' },
+  };
+  const URG = {
+    high:   { label: 'High',   row: 'bg-rose-50/70 border-rose-200',   ico: 'bg-rose-100 text-rose-600',       pill: 'bg-rose-100 text-rose-700' },
+    medium: { label: 'Medium', row: 'bg-amber-50/70 border-amber-200', ico: 'bg-amber-100 text-amber-600',     pill: 'bg-amber-100 text-amber-700' },
+    low:    { label: 'Low',    row: 'bg-slate-50 border-slate-200',    ico: 'bg-emerald-100 text-emerald-600', pill: 'bg-emerald-100 text-emerald-700' },
+  };
+
+  function normalize(d) {
+    const lvl = String(d.risk_level || '').toLowerCase();
+    const order = { high: 0, medium: 1, low: 2 };
+    return {
+      title: String(d.title || 'Untitled document').trim(),
+      risk: RISK[lvl] ? lvl : 'medium',
+      summary: String(d.summary || 'No summary was returned.').trim(),
+      laws: (Array.isArray(d.applicable_laws) ? d.applicable_laws : []).map(x => ({
+        law: String((x && x.law) || (typeof x === 'string' ? x : '')).trim(),
+        explanation: String((x && x.explanation) || '').trim(),
+      })).filter(x => x.law),
+      deadlines: (Array.isArray(d.deadlines) ? d.deadlines : []).map(x => {
+        const u = String((x && x.urgency) || '').toLowerCase();
+        return { when: String((x && x.date_or_period) || '').trim() || 'Date not specified', action: String((x && x.action) || '').trim(), urgency: URG[u] ? u : 'medium' };
+      }).sort((a, b) => order[a.urgency] - order[b.urgency]),
+      steps: (Array.isArray(d.action_steps) ? d.action_steps : []).map(s => String(s).trim()).filter(Boolean),
+    };
+  }
+  function lawTag(n) {
+    if (/bnss|bharatiya nagarik/i.test(n)) return 'BNSS 2023';
+    if (/bns|bharatiya nyaya/i.test(n)) return 'BNS 2023';
+    if (/bsa|bharatiya sakshya/i.test(n)) return 'BSA 2023';
+    if (/dpdp|data protection/i.test(n)) return 'DPDP 2023';
+    if (/constitution|article/i.test(n)) return 'Constitution';
+    return 'Statute';
+  }
+  const head = (icon, title, right = '') => `
+    <div class="flex items-center justify-between gap-3 mb-5">
+      <div class="flex items-center gap-3"><div class="tile tile-sm"><i data-lucide="${icon}" class="w-[18px] h-[18px]"></i></div>
+      <h3 class="font-bold text-ink text-[15px]">${title}</h3></div>${right}
+    </div>`;
+
+  function renderResult(raw) {
+    const d = normalize(raw); lastReport = d;
+    const rk = RISK[d.risk];
+
+    const meter = ['Low', 'Medium', 'High'].map((l, i) => `
+      <div class="flex-1"><div class="seg" style="${i <= rk.idx ? `background:${rk.seg}` : ''}"></div>
+      <div class="text-[10px] font-semibold mt-1.5 ${i === rk.idx ? 'text-ink' : 'text-slate-400'}">${l}</div></div>`).join('<div class="w-1.5"></div>');
+
+    const deadlines = d.deadlines.length ? d.deadlines.map(x => {
+      const u = URG[x.urgency];
+      return `<div class="flex gap-3 p-3.5 rounded-2xl border ${u.row}">
+        <div class="w-9 h-9 shrink-0 rounded-xl grid place-items-center ${u.ico}"><i data-lucide="${x.urgency === 'high' ? 'alarm-clock' : 'clock'}" class="w-[18px] h-[18px]"></i></div>
+        <div class="min-w-0"><div class="flex items-center gap-2 flex-wrap"><span class="font-bold text-ink text-sm">${esc(x.when)}</span>
+        <span class="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full ${u.pill}">${u.label}</span></div>
+        <p class="text-sm text-slate-600 mt-1 leading-relaxed">${esc(x.action)}</p></div></div>`;
+    }).join('') : `<div class="flex items-center gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800"><i data-lucide="check-circle-2" class="w-5 h-5 shrink-0"></i> No specific deadlines were found in this document.</div>`;
+
+    const laws = d.laws.length ? d.laws.map(l => `
+      <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 hover:bg-white hover:border-indigo-200 transition">
+        <span class="inline-block text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-brand mb-2">${lawTag(l.law)}</span>
+        <div class="font-bold text-ink text-sm leading-snug">${esc(l.law)}</div>${l.explanation ? `<p class="text-sm text-slate-500 mt-2 leading-relaxed">${esc(l.explanation)}</p>` : ''}
+      </div>`).join('') : `<div class="sm:col-span-2 flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-500"><i data-lucide="info" class="w-5 h-5 text-brand shrink-0"></i> No specific laws could be identified from this document.</div>`;
+
+    const steps = d.steps.length ? d.steps.map((s, i) => `
+      <li><button type="button" class="step-btn w-full text-left flex gap-3 p-3 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm transition" aria-pressed="false">
+        <span class="step-box mt-0.5 w-6 h-6 shrink-0 rounded-lg border-2 border-slate-300 grid place-items-center text-transparent"><i data-lucide="check" class="w-3.5 h-3.5" stroke-width="3"></i></span>
+        <span class="step-text text-sm text-slate-700 leading-relaxed"><span class="text-brand font-extrabold mr-1">${i + 1}.</span>${esc(s)}</span>
+      </button></li>`).join('') : `<li class="text-sm text-slate-500">No action steps were returned.</li>`;
+
+    results.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div class="lg:col-span-12 card tilt p-6 sm:p-8 rise overflow-hidden" data-tilt="1.5">
+        <div class="pointer-events-none absolute -top-24 -right-16 w-80 h-80 rounded-full blur-3xl" style="background:${rk.glow}"></div>
+        <div class="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div class="min-w-0">
+            <div class="text-[11px] uppercase tracking-[0.16em] font-extrabold text-brand mb-2">Document analysed</div>
+            <h2 class="font-serif text-3xl sm:text-[40px] leading-[1.1] text-ink break-words">${esc(d.title)}</h2>
+          </div>
+          <div class="md:w-72 shrink-0">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full ring-1 ring-inset font-bold text-sm ${rk.pill}"><i data-lucide="${rk.icon}" class="w-4 h-4"></i> ${rk.label}</div>
+            <div class="flex mt-4">${meter}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-7 card tilt p-6 sm:p-7 rise" data-tilt="2" style="animation-delay:.06s">
+        ${head('book-open', 'Plain-language summary')}
+        <p class="text-slate-600 leading-[1.8] whitespace-pre-line">${esc(d.summary)}</p>
+      </div>
+
+      <div class="lg:col-span-5 card tilt p-6 sm:p-7 rise" data-tilt="2" style="animation-delay:.12s">
+        ${head('alarm-clock', 'Deadlines &amp; alerts')}
+        <div class="space-y-3">${deadlines}</div>
+      </div>
+
+      <div class="lg:col-span-7 card tilt p-6 sm:p-7 rise" data-tilt="2" style="animation-delay:.18s">
+        ${head('landmark', 'Applicable Indian laws')}
+        <div class="grid sm:grid-cols-2 gap-3">${laws}</div>
+      </div>
+
+      <div class="lg:col-span-5 card tilt p-6 sm:p-7 rise" data-tilt="2" style="animation-delay:.24s">
+        ${head('list-checks', 'Recommended action plan', `<span id="stepProgress" class="shrink-0 whitespace-nowrap text-xs font-extrabold text-brand bg-indigo-50 px-2.5 py-1 rounded-full">0 / ${d.steps.length}</span>`)}
+        <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden mb-4"><div id="stepBar" class="h-full rounded-full bg-brand transition-all duration-500" style="width:0%"></div></div>
+        <ul id="stepList" class="space-y-2.5">${steps}</ul>
+      </div>
+
+      <div class="lg:col-span-12 flex flex-wrap items-center gap-3 rise" style="animation-delay:.3s">
+        <button type="button" data-action="copy" class="btn-soft inline-flex items-center gap-2 px-4 py-2.5 text-sm"><i data-lucide="copy" class="w-4 h-4"></i> Copy report</button>
+        <button type="button" data-action="again" class="btn-soft inline-flex items-center gap-2 px-4 py-2.5 text-sm"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Analyze another document</button>
+        <span class="text-[11px] text-slate-400 sm:ml-auto">AI-generated · For legal awareness only · Verify with a qualified advocate</span>
+      </div>
+    </div>`;
+    icons(); initTilt(results);
+  }
+
+  function reportText(d) {
+    const L = ['jatinSARTHI AI — DOCUMENT ANALYSIS', '', `Title: ${d.title}`, `Risk level: ${RISK[d.risk].label}`, '', 'SUMMARY', d.summary, '', 'DEADLINES & ALERTS'];
+    if (d.deadlines.length) d.deadlines.forEach(x => L.push(`- [${URG[x.urgency].label}] ${x.when}: ${x.action}`)); else L.push('- None found');
+    L.push('', 'APPLICABLE LAWS');
+    if (d.laws.length) d.laws.forEach(x => L.push(`- ${x.law}${x.explanation ? ': ' + x.explanation : ''}`)); else L.push('- None identified');
+    L.push('', 'ACTION PLAN'); d.steps.forEach((s, i) => L.push(`${i + 1}. ${s}`));
+    L.push('', 'Disclaimer: AI-generated for legal awareness only. Not official legal advice.');
+    return L.join('\n');
+  }
+  function updateProgress() {
+    const total = $$('#stepList .step-btn').length, done = $$('#stepList .step-done').length;
+    const p = $('#stepProgress'), bar = $('#stepBar');
+    if (p) p.textContent = `${done} / ${total}`;
+    if (bar) bar.style.width = total ? Math.round(done / total * 100) + '%' : '0%';
+  }
+  results.addEventListener('click', async (e) => {
+    const step = e.target.closest('.step-btn');
+    if (step) { step.setAttribute('aria-pressed', step.classList.toggle('step-done') ? 'true' : 'false'); updateProgress(); return; }
+    const act = e.target.closest('[data-action]'); if (!act) return;
+    if (act.dataset.action === 'copy' && lastReport) { toast((await copyText(reportText(lastReport))) ? 'Report copied to clipboard' : 'Could not copy. Please select and copy manually.'); }
+    if (act.dataset.action === 'again') {
+      results.innerHTML = ''; lastReport = null; pickedFile = null; renderFile(); docText.value = ''; $('#docCount').textContent = '0';
+      $('#view-analyzer').scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // LEGAL AI CHAT
+  // ---------------------------------------------------------------
+  const chatScroll = $('#chatScroll'), chatInner = $('#chatInner'), chatEmpty = $('#chatEmpty');
+  const chatInput = $('#chatInput'), chatForm = $('#chatForm'), chatSend = $('#chatSend'), newChatBtn = $('#newChat');
+  let chatBusy = false;
+
+  const scrollChat = (smooth = true) => requestAnimationFrame(() => chatScroll.scrollTo({ top: chatScroll.scrollHeight, behavior: smooth ? 'smooth' : 'auto' }));
+  const autoGrow = () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + 'px'; };
+  chatInput.addEventListener('input', autoGrow);
+  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(chatInput.value); } });
+  chatForm.addEventListener('submit', (e) => { e.preventDefault(); sendChat(chatInput.value); });
+  $$('.starter').forEach(c => c.addEventListener('click', () => sendChat(c.dataset.q)));
+
+  function addUser(text) {
+    const el = document.createElement('div');
+    el.className = 'flex justify-end rise';
+    el.innerHTML = '<div class="btn-3d max-w-[88%] sm:max-w-[75%] rounded-2xl rounded-br-md px-4 py-3 text-sm leading-relaxed font-medium whitespace-pre-wrap break-words text-left" style="cursor:default"></div>';
+    el.firstElementChild.textContent = text;
+    chatInner.appendChild(el); scrollChat();
+  }
+  const avatar = '<div class="logo-mark mt-0.5" style="width:32px;height:32px;border-radius:10px;flex-shrink:0"><i data-lucide="scale" class="w-4 h-4"></i></div>';
+
+  function addTyping() {
+    const el = document.createElement('div');
+    el.className = 'flex gap-3 rise';
+    el.innerHTML = `${avatar}<div class="card px-4 py-3 flex items-center gap-3 text-sm text-slate-600" style="border-radius:16px 16px 16px 6px">
+      <span>jatinSARTHI is analyzing...</span>
+      <span class="flex gap-1"><span class="tdot w-1.5 h-1.5 rounded-full bg-brand"></span><span class="tdot w-1.5 h-1.5 rounded-full bg-brand"></span><span class="tdot w-1.5 h-1.5 rounded-full bg-brand"></span></span></div>`;
+    chatInner.appendChild(el); icons(); scrollChat(); return el;
+  }
+
+  function addAI(text, isError = false) {
+    const el = document.createElement('div');
+    el.className = 'flex gap-3 rise';
+    if (isError) {
+      el.innerHTML = `${avatar}<div class="min-w-0 max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed border border-rose-200 bg-rose-50 text-rose-800 flex gap-2.5">
+        <i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span class="msg-err"></span></div>`;
+      $('.msg-err', el).textContent = text;
+    } else {
+      el.innerHTML = `${avatar}<div class="min-w-0 max-w-[92%] sm:max-w-[85%]">
+        <div class="card px-5 py-4 prose-nyay" style="border-radius:16px 16px 16px 6px"></div>
+        <div class="mt-2 flex items-center gap-1">
+          <button type="button" class="copy-btn inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-brand hover:bg-indigo-50 transition">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i><span>Copy</span></button></div></div>`;
+      $('.prose-nyay', el).innerHTML = renderMarkdown(text);
+      const btn = $('.copy-btn', el);
+      btn.addEventListener('click', async () => {
+        const ok = await copyText(text), label = $('span', btn);
+        label.textContent = ok ? 'Copied!' : 'Failed'; btn.classList.toggle('text-emerald-600', ok);
+        setTimeout(() => { label.textContent = 'Copy'; btn.classList.remove('text-emerald-600'); }, 1600);
+      });
+    }
+    chatInner.appendChild(el); icons(); scrollChat();
+  }
+
+  async function sendChat(raw) {
+    const text = (raw || '').trim();
+    if (!text || chatBusy) return;
+    chatBusy = true; chatSend.disabled = true;
+    stopListening(true);
+    chatEmpty.classList.add('hidden');
+    newChatBtn.classList.remove('hidden'); newChatBtn.classList.add('inline-flex');
+    addUser(text); chatInput.value = ''; autoGrow();
+    const typing = addTyping();
+    try {
+      const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: text }) });
+      const data = await readJson(res);
+      if (!res.ok) throw new ApiError(extractDetail(data, res.status));
+      typing.remove();
+      addAI((data && data.answer) ? data.answer : 'Sorry, I received an empty answer. Please try again.');
+    } catch (err) {
+      typing.remove(); addAI(friendlyError(err), true);
+      if (!(err instanceof ApiError)) ping();
+    } finally {
+      chatBusy = false; chatSend.disabled = false;
+      if (isDesktop()) chatInput.focus();
+    }
+  }
+  newChatBtn.addEventListener('click', () => {
+    Array.from(chatInner.children).forEach(c => { if (c !== chatEmpty) c.remove(); });
+    chatEmpty.classList.remove('hidden');
+    newChatBtn.classList.add('hidden'); newChatBtn.classList.remove('inline-flex');
+    chatScroll.scrollTo({ top: 0 });
+  });
+
+  // ---------------------------------------------------------------
+  // VOICE INPUT (browser Web Speech API) — fills the chat box so you can review before sending
+  // ---------------------------------------------------------------
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = $('#micBtn'), langBtns = $$('#langToggle button');
+  const DEFAULT_PLACEHOLDER = chatInput.placeholder;
+  const LANG_NAMES = { 'en-IN': 'Indian English', 'hi-IN': 'Hindi / Hinglish' };
+  let rec = null, voiceState = 'idle';            // idle | starting | listening
+  let voiceLang = 'en-IN', voiceBase = '', restartVoice = false;
+  try { const s = localStorage.getItem('nyay_voice_lang'); if (LANG_NAMES[s]) voiceLang = s; } catch (e) {}
+
+  function paintLang() {
+    langBtns.forEach(b => { const on = b.dataset.lang === voiceLang; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  }
+  function paintMic() {
+    const on = voiceState !== 'idle';
+    micBtn.classList.toggle('rec', on);
+    micBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    micBtn.setAttribute('aria-label', on ? 'Stop voice input' : 'Start voice input');
+    micBtn.title = on ? 'Listening… click to stop' : (SpeechRec ? 'Speak your question' : "Voice input isn't supported in this browser");
+    chatInput.placeholder = on ? 'Listening...' : DEFAULT_PLACEHOLDER;
+  }
+  function voiceErrorMessage(code) {
+    switch (code) {
+      case 'not-allowed':
+      case 'service-not-allowed': return "Microphone access is blocked. Allow the microphone in your browser's address bar, then try again.";
+      case 'audio-capture': return 'No microphone was found. Please connect one and try again.';
+      case 'no-speech': return "I didn't hear anything. Tap the mic and try speaking again.";
+      case 'network': return 'Voice input needs an internet connection. Please check yours and try again.';
+      case 'language-not-supported': return "This browser can't do voice input in that language.";
+      case 'aborted': return null;
+      default: return 'Voice input stopped unexpectedly. Please try again.';
+    }
+  }
+
+  function startListening() {
+    if (!SpeechRec) { toast("Voice input isn't supported in this browser. Please use Chrome, Edge or Safari."); return; }
+    if (window.isSecureContext === false) { toast('Voice input needs a secure connection (https or localhost).'); return; }
+    const r = new SpeechRec();
+    try {
+      r.lang = voiceLang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+      const v = chatInput.value;
+      voiceBase = v && !/\s$/.test(v) ? v + ' ' : v;      // keep whatever is already typed
+      r.onstart = () => { if (rec === r) { voiceState = 'listening'; paintMic(); } };
+      r.onresult = (e) => {
+        let finalText = '', interim = '';
+        for (let i = 0; i < e.results.length; i++) {
+          const res = e.results[i];
+          if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
+        }
+        chatInput.value = (voiceBase + finalText + interim).slice(0, chatInput.maxLength > 0 ? chatInput.maxLength : 2000);
+        autoGrow();
+      };
+      r.onerror = (e) => {
+        const msg = voiceErrorMessage(e && e.error);
+        if (msg) toast(msg);
+        if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture')) restartVoice = false;
+      };
+      r.onend = () => {
+        if (rec !== r) return;
+        rec = null; voiceState = 'idle'; paintMic();
+        if (restartVoice) { restartVoice = false; startListening(); }
+        else if (isDesktop() && !$('#view-chat').classList.contains('hidden')) chatInput.focus();
+      };
+      rec = r; voiceState = 'starting'; paintMic();
+      r.start();
+    } catch (err) {
+      rec = null; voiceState = 'idle'; restartVoice = false; paintMic();
+      toast('Could not start voice input. Please try again.');
+    }
+  }
+
+  // discard = true throws away anything still being recognised (used when sending)
+  function stopListening(discard = false) {
+    restartVoice = false;
+    if (!rec) return;
+    const r = rec;
+    try {
+      if (discard) { r.onresult = null; r.abort(); } else r.stop();
+    } catch (e) {}
+    if (discard) { rec = null; voiceState = 'idle'; paintMic(); }
+  }
+
+  micBtn.addEventListener('click', () => { if (voiceState === 'idle') startListening(); else stopListening(); });
+  langBtns.forEach(b => b.addEventListener('click', () => {
+    const l = b.dataset.lang;
+    if (l === voiceLang) return;
+    voiceLang = l; paintLang();
+    try { localStorage.setItem('nyay_voice_lang', l); } catch (e) {}
+    toast('Voice language: ' + LANG_NAMES[l]);
+    if (voiceState !== 'idle' && rec) { const r = rec; restartVoice = true; try { r.stop(); } catch (e) { restartVoice = false; } }   // restart in the new language
+  }));
+  paintLang(); paintMic();
+
+  // ---------------------------------------------------------------
+  // Start up
+  // ---------------------------------------------------------------
+  icons(); initTilt(document); ping(); setInterval(ping, 20000);
+  requestAnimationFrame(replacePills);
+})();
+</script>
+</body>
+</html>
